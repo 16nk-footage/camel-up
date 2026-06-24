@@ -1,7 +1,15 @@
+bash
+
+cat /home/claude/camel-up/src/App.jsx
+出力
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "./firebase";
 import { ref, onValue, set, get } from "firebase/database";
 
+// ============================================================
+// CONSTANTS
+// ============================================================
 const NORMAL_CAMELS = ["red", "blue", "green", "yellow", "purple"];
 const CRAZY_CAMELS = ["white", "black"];
 const ALL_CAMELS = [...NORMAL_CAMELS, ...CRAZY_CAMELS];
@@ -21,22 +29,9 @@ const LEG_BET_TILES = [5, 3, 2, 2];
 const RACE_BET_PAYOUTS = [8, 5, 3, 2, 1];
 const DB_KEY = "camelup_game";
 
-const palette = {
-  darkSand: "#C4A24A", dusk: "#1A1035", night: "#0D0820",
-  accent: "#FF6B35", gold: "#FFD700",
-  cardBg: "rgba(255,255,255,0.08)", cardBorder: "rgba(255,215,0,0.25)",
-};
-
-const PLAYER_COLORS = [
-  { bg: "rgba(100,180,255,0.18)", border: "rgba(100,180,255,0.5)", text: "#64B4FF" },
-  { bg: "rgba(255,160,80,0.18)",  border: "rgba(255,160,80,0.5)",  text: "#FFA050" },
-  { bg: "rgba(120,220,120,0.18)", border: "rgba(120,220,120,0.5)", text: "#78DC78" },
-  { bg: "rgba(220,120,220,0.18)", border: "rgba(220,120,220,0.5)", text: "#DC78DC" },
-  { bg: "rgba(255,220,80,0.18)",  border: "rgba(255,220,80,0.5)",  text: "#FFDC50" },
-  { bg: "rgba(80,220,220,0.18)",  border: "rgba(80,220,220,0.5)",  text: "#50DCDC" },
-  { bg: "rgba(255,100,150,0.18)", border: "rgba(255,100,150,0.5)", text: "#FF6496" },
-  { bg: "rgba(180,140,255,0.18)", border: "rgba(180,140,255,0.5)", text: "#B48CFF" },
-];
+// ============================================================
+// GAME LOGIC
+// ============================================================
 function initGame(players) {
   const positions = {};
   const stacks = {};
@@ -155,6 +150,30 @@ function scoreEndOfLeg(state) {
   ns.log.unshift("🎲 新しいレッグ開始！");
   return ns;
 }
+
+// ============================================================
+// PALETTE
+// ============================================================
+const palette = {
+  darkSand: "#C4A24A", dusk: "#1A1035", night: "#0D0820",
+  accent: "#FF6B35", gold: "#FFD700",
+  cardBg: "rgba(255,255,255,0.08)", cardBorder: "rgba(255,215,0,0.25)",
+};
+
+const PLAYER_COLORS = [
+  { bg: "rgba(100,180,255,0.18)", border: "rgba(100,180,255,0.5)", text: "#64B4FF" },
+  { bg: "rgba(255,160,80,0.18)",  border: "rgba(255,160,80,0.5)",  text: "#FFA050" },
+  { bg: "rgba(120,220,120,0.18)", border: "rgba(120,220,120,0.5)", text: "#78DC78" },
+  { bg: "rgba(220,120,220,0.18)", border: "rgba(220,120,220,0.5)", text: "#DC78DC" },
+  { bg: "rgba(255,220,80,0.18)",  border: "rgba(255,220,80,0.5)",  text: "#FFDC50" },
+  { bg: "rgba(80,220,220,0.18)",  border: "rgba(80,220,220,0.5)",  text: "#50DCDC" },
+  { bg: "rgba(255,100,150,0.18)", border: "rgba(255,100,150,0.5)", text: "#FF6496" },
+  { bg: "rgba(180,140,255,0.18)", border: "rgba(180,140,255,0.5)", text: "#B48CFF" },
+];
+
+// ============================================================
+// COMPONENTS
+// ============================================================
 function CamelStack({ stack }) {
   return (
     <div style={{ display: "flex", flexDirection: "column-reverse", alignItems: "center" }}>
@@ -226,7 +245,101 @@ function LegBetPanel({ state, currentPlayer, onBet }) {
     </div>
   );
 }
-if (screen === "lobby") {
+
+// ============================================================
+// MAIN APP
+// ============================================================
+export default function App() {
+  const [screen, setScreen] = useState("lobby");
+  const [playerName, setPlayerName] = useState("");
+  const [myName, setMyName] = useState("");
+  const [game, setGame] = useState(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTab, setHelpTab] = useState(0);
+  const gameRef = useRef(null);
+
+  // ── Firebase リアルタイム同期 ─────────────────────────────
+  useEffect(() => {
+    const dbRef = ref(db, DB_KEY);
+    const unsub = onValue(dbRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setGame(data);
+        gameRef.current = data;
+        setScreen((s) => s === "lobby" && data ? "game" : s);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const saveGame = async (g) => {
+    gameRef.current = g;
+    await set(ref(db, DB_KEY), g);
+  };
+
+  // ── Join ────────────────────────────────────────────────
+  const joinGame = async () => {
+    if (!playerName.trim()) return;
+    const name = playerName.trim();
+    setMyName(name);
+    const latest = gameRef.current;
+    let playerList = latest?.players || [];
+    if (!playerList.includes(name)) playerList = [...playerList, name];
+    let current = latest ? { ...latest, players: playerList } : initGame(playerList);
+    if (!current.coins[name]) current.coins[name] = STARTING_COINS;
+    await saveGame(current);
+    setScreen("game");
+  };
+
+  // ── Act（最新データを取得してから更新）─────────────────────
+  const act = async (fn) => {
+    const snapshot = await get(ref(db, DB_KEY));
+    const latest = snapshot.val() || gameRef.current;
+    const newGame = fn(latest);
+    newGame.turn = (newGame.turn || 0) + 1;
+    await saveGame(newGame);
+  };
+
+  const handleRoll = () => act((g) => {
+    const result = rollDice(g);
+    if (!result) return g;
+    const { camel, steps, isCrazy: crazy } = result;
+    let ns = JSON.parse(JSON.stringify(g));
+    ns.log.unshift(`🎲 ${CAMEL_JP[camel]}（${crazy ? "逆走" : "前進"}）に${steps}が出た！`);
+    if (crazy) { ns.crazyDiceUsed = true; } else { ns.usedDice = [...(ns.usedDice || []), camel]; }
+    ns = moveCamel(ns, camel, steps, crazy);
+    ns.coins[myName] = (ns.coins[myName] || 0) + 1;
+    if (ns.phase !== "finished") {
+      const totalUsed = ns.usedDice.length + (ns.crazyDiceUsed ? 1 : 0);
+      if (totalUsed >= 5) ns = scoreEndOfLeg(ns);
+    }
+    return ns;
+  });
+
+  const handleLegBet = (camel) => act((g) => {
+    const ns = JSON.parse(JSON.stringify(g));
+    if (!ns.legBets[camel]) ns.legBets[camel] = [];
+    const tile = LEG_BET_TILES[ns.legBets[camel].length];
+    if (!tile) return g;
+    ns.legBets[camel].push({ player: myName, tile });
+    ns.log.unshift(`📋 ${myName}が${CAMEL_JP[camel]}にベット（+${tile}）`);
+    return ns;
+  });
+
+  const handleRaceBet = (type, camel) => act((g) => {
+    const ns = JSON.parse(JSON.stringify(g));
+    ns.raceBets[type].push({ player: myName, camel });
+    ns.log.unshift(`🏅 ${myName}が${CAMEL_JP[camel]}の${type === "win" ? "優勝" : "最下位"}に賭けた`);
+    return ns;
+  });
+
+  const resetGame = async () => {
+    const players = game?.players || [myName];
+    await saveGame(initGame(players));
+  };
+
+  // ── LOBBY ─────────────────────────────────────────────────
+  if (screen === "lobby") {
     return (
       <div style={{ minHeight: "100vh", background: `linear-gradient(170deg, ${palette.night} 0%, #1a0d40 50%, ${palette.dusk} 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif", color: "white", padding: 24, gap: 32 }}>
         <div style={{ textAlign: "center" }}>
@@ -273,56 +386,11 @@ if (screen === "lobby") {
       </span>
     );
   };
-if (screen === "lobby") {
-    return (
-      <div style={{ minHeight: "100vh", background: `linear-gradient(170deg, ${palette.night} 0%, #1a0d40 50%, ${palette.dusk} 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif", color: "white", padding: 24, gap: 32 }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 60, marginBottom: 8 }}>🐪🏜️🐪</div>
-          <h1 style={{ fontSize: 40, fontWeight: 900, letterSpacing: "-1px", margin: 0, background: `linear-gradient(90deg, ${palette.gold}, ${palette.accent})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>キャメルアップ</h1>
-          <p style={{ color: "rgba(255,255,255,0.45)", marginTop: 8, fontSize: 13 }}>白・黒逆走ラクダ対応版 ／ 友人と同じURLを開いてプレイ！</p>
-        </div>
-        <div style={{ background: palette.cardBg, border: `1px solid ${palette.cardBorder}`, borderRadius: 16, padding: 28, width: "100%", maxWidth: 360, display: "flex", flexDirection: "column", gap: 16 }}>
-          <label style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 700 }}>プレイヤー名</label>
-          <input value={playerName} onChange={(e) => setPlayerName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && joinGame()} placeholder="あなたの名前..." style={{ padding: "12px 16px", borderRadius: 10, border: `1px solid ${palette.cardBorder}`, background: "rgba(255,255,255,0.07)", color: "white", fontSize: 16, outline: "none" }} />
-          <button onClick={joinGame} style={{ padding: "13px", borderRadius: 10, border: "none", background: `linear-gradient(90deg, ${palette.accent}, ${palette.darkSand})`, color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>🐪 ゲームに参加 / 開始</button>
-          {game?.players?.length > 0 && <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.35)", margin: 0 }}>現在: {game.players.join(", ")}</p>}
-        </div>
-        <div style={{ background: "rgba(255,215,0,0.07)", border: "1px solid rgba(255,215,0,0.18)", borderRadius: 12, padding: "14px 20px", maxWidth: 360, fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.7, textAlign: "center" }}>
-          💡 このページのURLを友人に共有するだけ！<br />同じURLから参加すれば自動で同期されます。
-        </div>
-      </div>
-    );
-  }
 
-  if (!game) return <div style={{ color: "white", padding: 20 }}>読み込み中...</div>;
-
-  const currentTurnPlayer = game.players[game.turn % game.players.length];
-  const isMyTurn = currentTurnPlayer === myName;
-  const remainingNormal = NORMAL_CAMELS.filter((c) => !(game.usedDice || []).includes(c));
-  const crazyRemaining = !game.crazyDiceUsed;
-  const rankedNormal = [...NORMAL_CAMELS].sort((a, b) => {
-    const pa = game.positions[a] ?? 0, pb = game.positions[b] ?? 0;
-    if (pa !== pb) return pb - pa;
-    const sa = game.stacks[pa] || [], sb = game.stacks[pb] || [];
-    return sb.indexOf(b) - sa.indexOf(a);
-  });
-  const playerColorMap = {};
-  (game.players || []).forEach((p, i) => { playerColorMap[p] = PLAYER_COLORS[i % PLAYER_COLORS.length]; });
-
-  const ss = { background: palette.cardBg, border: `1px solid ${palette.cardBorder}`, borderRadius: 14, padding: "16px 20px" };
-  const tt = { fontSize: 10, fontWeight: 700, letterSpacing: "1.5px", color: "rgba(255,215,0,0.55)", textTransform: "uppercase", marginBottom: 12 };
-
-  const PlayerChip = ({ player }) => {
-    const col = playerColorMap[player] || PLAYER_COLORS[0];
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 6, padding: "2px 7px", fontSize: 11, fontWeight: 700, color: col.text, whiteSpace: "nowrap" }}>
-        {player === myName ? "★ " : ""}{player}
-      </span>
-    );
-  };
-return (
+  return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg, ${palette.night} 0%, #1a0d40 60%, ${palette.dusk} 100%)`, fontFamily: "'Segoe UI', sans-serif", color: "white", padding: "16px", display: "flex", flexDirection: "column", gap: 14, maxWidth: 740, margin: "0 auto" }}>
 
+      {/* Help Modal */}
       {helpOpen && (
         <div onClick={() => setHelpOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "linear-gradient(160deg, #1a0d40 0%, #0d0820 100%)", border: "1px solid rgba(255,215,0,0.3)", borderRadius: 18, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", padding: "24px 22px", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
@@ -375,6 +443,8 @@ return (
           </div>
         </div>
       )}
+
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, background: `linear-gradient(90deg, ${palette.gold}, ${palette.accent})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>🐪 キャメルアップ</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -434,6 +504,7 @@ return (
           ))}
         </div>
       </div>
+
       {game.phase !== "finished" && isMyTurn && (
         <>
           <div style={ss}>
@@ -478,56 +549,60 @@ return (
         </>
       )}
 
-      <div style={{ ...ss, border: "1px solid rgba(150,150,255,0.25)", background: "rgba(150,150,255,0.05)" }}>
-        <div style={{ ...tt, color: "rgba(180,180,255,0.75)" }}>📌 ベット一覧（全員）</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          {(game.players || []).map((p) => <PlayerChip key={p} player={p} />)}
-        </div>
-        {(() => {
-          const allLegBets = NORMAL_CAMELS.flatMap((camel) => (game.legBets[camel] || []).map((b, idx) => ({ ...b, camel, order: idx })));
-          const allWinBets = game.raceBets.win;
-          const allLoseBets = game.raceBets.lose;
-          const hasAny = allLegBets.length > 0 || allWinBets.length > 0 || allLoseBets.length > 0;
-          if (!hasAny) return <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>まだ誰もベットしていません</div>;
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {allLegBets.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>📋 レッグベット</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {NORMAL_CAMELS.map((camel) => {
-                      const bets = (game.legBets[camel] || []).map((b, idx) => ({ ...b, order: idx }));
-                      if (bets.length === 0) return null;
-                      return (
-                        <div key={camel} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 18, flexShrink: 0 }}>{CAMEL_EMOJI[camel]}</span>
-                          {bets.map((b, i) => { const col = playerColorMap[b.player] || PLAYER_COLORS[0]; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 7, padding: "4px 9px" }}><span style={{ fontSize: 11, fontWeight: 700, color: col.text }}>{b.player === myName ? "★ " : ""}{b.player}</span><span style={{ fontSize: 12, fontWeight: 700, color: palette.gold }}>+{b.tile}</span></div>); })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {allWinBets.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏆 優勝ベット</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {allWinBets.map((b, i) => { const col = playerColorMap[b.player] || PLAYER_COLORS[0]; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 5, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 8, padding: "5px 10px" }}><span style={{ fontSize: 17 }}>{CAMEL_EMOJI[b.camel]}</span><span style={{ fontSize: 11, fontWeight: 700, color: col.text }}>{b.player === myName ? "★ " : ""}{b.player}</span></div>); })}
-                  </div>
-                </div>
-              )}
-              {allLoseBets.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏁 最下位ベット</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {allLoseBets.map((b, i) => { const col = playerColorMap[b.player] || PLAYER_COLORS[0]; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 5, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 8, padding: "5px 10px" }}><span style={{ fontSize: 17 }}>{CAMEL_EMOJI[b.camel]}</span><span style={{ fontSize: 11, fontWeight: 700, color: col.text }}>{b.player === myName ? "★ " : ""}{b.player}</span></div>); })}
-                  </div>
-                </div>
-              )}
+      {/* ベット一覧（全員） */}
+      {(() => {
+        const allLegBets = NORMAL_CAMELS.flatMap((camel) => (game.legBets[camel] || []).map((b, idx) => ({ ...b, camel, order: idx })));
+        const allWinBets = game.raceBets.win;
+        const allLoseBets = game.raceBets.lose;
+        const hasAny = allLegBets.length > 0 || allWinBets.length > 0 || allLoseBets.length > 0;
+        return (
+          <div style={{ ...ss, border: "1px solid rgba(150,150,255,0.25)", background: "rgba(150,150,255,0.05)" }}>
+            <div style={{ ...tt, color: "rgba(180,180,255,0.75)" }}>📌 ベット一覧（全員）</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {(game.players || []).map((p) => <PlayerChip key={p} player={p} />)}
             </div>
-          );
-        })()}
-      </div>
+            {!hasAny ? (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>まだ誰もベットしていません</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {allLegBets.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>📋 レッグベット</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {NORMAL_CAMELS.map((camel) => {
+                        const bets = (game.legBets[camel] || []).map((b, idx) => ({ ...b, order: idx }));
+                        if (bets.length === 0) return null;
+                        return (
+                          <div key={camel} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 18, flexShrink: 0 }}>{CAMEL_EMOJI[camel]}</span>
+                            {bets.map((b, i) => { const col = playerColorMap[b.player] || PLAYER_COLORS[0]; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 7, padding: "4px 9px" }}><span style={{ fontSize: 11, fontWeight: 700, color: col.text }}>{b.player === myName ? "★ " : ""}{b.player}</span><span style={{ fontSize: 12, fontWeight: 700, color: palette.gold }}>+{b.tile}</span></div>); })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {allWinBets.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏆 優勝ベット</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {allWinBets.map((b, i) => { const col = playerColorMap[b.player] || PLAYER_COLORS[0]; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 5, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 8, padding: "5px 10px" }}><span style={{ fontSize: 17 }}>{CAMEL_EMOJI[b.camel]}</span><span style={{ fontSize: 11, fontWeight: 700, color: col.text }}>{b.player === myName ? "★ " : ""}{b.player}</span></div>); })}
+                    </div>
+                  </div>
+                )}
+                {allLoseBets.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏁 最下位ベット</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {allLoseBets.map((b, i) => { const col = playerColorMap[b.player] || PLAYER_COLORS[0]; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 5, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 8, padding: "5px 10px" }}><span style={{ fontSize: 17 }}>{CAMEL_EMOJI[b.camel]}</span><span style={{ fontSize: 11, fontWeight: 700, color: col.text }}>{b.player === myName ? "★ " : ""}{b.player}</span></div>); })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div style={ss}>
         <div style={tt}>💰 コイン残高</div>
@@ -554,3 +629,4 @@ return (
     </div>
   );
 }
+完了
