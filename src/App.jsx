@@ -1,5 +1,3 @@
-bash
-
 cat /home/claude/camel-up/src/App.jsx
 出力
 
