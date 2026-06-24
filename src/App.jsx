@@ -1,5 +1,3 @@
-cat /home/claude/camel-up/src/App.jsx
-出力
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "./firebase";
