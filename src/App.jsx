@@ -181,14 +181,24 @@ function CamelStack({ stack }) {
   );
 }
 
-function Track({ stacks }) {   stacks = stacks || {};
+function normalizeStacks(stacks) {
+  if (!stacks) return {};
+  const result = {};
+  Object.keys(stacks).forEach(k => {
+    result[parseInt(k)] = Array.isArray(stacks[k]) ? stacks[k] : Object.values(stacks[k]);
+  });
+  return result;
+}
+
+function Track({ stacks }) {
+  stacks = normalizeStacks(stacks);
   return (
     <div style={{ overflowX: "auto", paddingBottom: 6 }}>
       <div style={{ display: "flex", gap: 3, minWidth: TRACK_LENGTH * 50 }}>
         {Array.from({ length: TRACK_LENGTH }).map((_, i) => {
           const isGoal = i === TRACK_LENGTH - 1;
           const isStart = i === 0;
-          const sq = stacks[String(i)] || stacks[i] || [];
+          const sq = stacks[i] || [];
           return (
             <div key={i} style={{
               width: 46, minHeight: 70, borderRadius: 7,
@@ -361,10 +371,11 @@ export default function App() {
   const isMyTurn = currentTurnPlayer === myName;
   const remainingNormal = NORMAL_CAMELS.filter((c) => !(game.usedDice || []).includes(c));
   const crazyRemaining = !game.crazyDiceUsed;
+  const normalizedStacks = normalizeStacks(game.stacks);
   const rankedNormal = [...NORMAL_CAMELS].sort((a, b) => {
     const pa = game.positions[a] ?? 0, pb = game.positions[b] ?? 0;
     if (pa !== pb) return pb - pa;
-    const sa = game.stacks[pa] || [], sb = game.stacks[pb] || [];
+    const sa = normalizedStacks[pa] || [], sb = normalizedStacks[pb] || [];
     return sb.indexOf(b) - sa.indexOf(a);
   });
   const playerColorMap = {};
@@ -473,7 +484,7 @@ export default function App() {
 
       <div style={ss}>
         <div style={tt}>🏜️ レーストラック</div>
-        <Track stacks={game.stacks} />
+        <Track stacks={normalizedStacks} />
         <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", display: "flex", gap: 12 }}>
           <span>⬜ 白ラクダ（逆走）</span><span>⬛ 黒ラクダ（逆走）</span>
         </div>
@@ -624,4 +635,3 @@ export default function App() {
     </div>
   );
 }
-
