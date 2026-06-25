@@ -375,7 +375,12 @@ export default function App() {
   };
 
   const newGame = async () => {
-    await saveGame(initGame([myName]));
+    // Firebaseを完全にnullにしてロビーに戻す
+    await set(ref(db, DB_KEY), null);
+    setGame(null);
+    setMyName("");
+    setPlayerName("");
+    setScreen("lobby");
     setOptionOpen(false);
   };
 
