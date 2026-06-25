@@ -188,7 +188,7 @@ function Track({ stacks }) {
         {Array.from({ length: TRACK_LENGTH }).map((_, i) => {
           const isGoal = i === TRACK_LENGTH - 1;
           const isStart = i === 0;
-          const sq = stacks[i] || [];
+          const sq = stacks[String(i)] || stacks[i] || [];
           return (
             <div key={i} style={{
               width: 46, minHeight: 70, borderRadius: 7,
