@@ -181,7 +181,7 @@ function CamelStack({ stack }) {
   );
 }
 
-function Track({ stacks }) {
+function Track({ stacks }) {   stacks = stacks || {};
   return (
     <div style={{ overflowX: "auto", paddingBottom: 6 }}>
       <div style={{ display: "flex", gap: 3, minWidth: TRACK_LENGTH * 50 }}>
