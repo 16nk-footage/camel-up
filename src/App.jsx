@@ -278,6 +278,7 @@ export default function App() {
   const [game, setGame] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTab, setHelpTab] = useState(0);
+  const [optionOpen, setOptionOpen] = useState(false);
   const gameRef = useRef(null);
 
   useEffect(() => {
@@ -326,6 +327,10 @@ export default function App() {
     if (!result) return g;
     const { camel, steps, isCrazy: crazy } = result;
     let ns = JSON.parse(JSON.stringify(g));
+    // stacks を正規化してから処理
+    const fixedStacks = {};
+    Object.keys(ns.stacks || {}).forEach(k => { fixedStacks[Number(k)] = toArr(ns.stacks[k]); });
+    ns.stacks = fixedStacks;
     ns.log = toArr(ns.log);
     ns.log.unshift(`🎲 ${CAMEL_JP[camel]}（${crazy?"逆走":"前進"}）に${steps}が出た！`);
     if (crazy) { ns.crazyDiceUsed = true; } else { ns.usedDice = [...toArr(ns.usedDice), camel]; }
@@ -335,6 +340,8 @@ export default function App() {
       const total = toArr(ns.usedDice).length + (ns.crazyDiceUsed ? 1 : 0);
       if (total >= 5) ns = scoreEndOfLeg(ns);
     }
+    // ゴール後の精算ログを保持
+    ns.log = toArr(ns.log);
     return ns;
   });
 
@@ -364,6 +371,12 @@ export default function App() {
   const resetGame = async () => {
     const players = game?.players || [myName];
     await saveGame(initGame(players));
+    setOptionOpen(false);
+  };
+
+  const newGame = async () => {
+    await saveGame(initGame([myName]));
+    setOptionOpen(false);
   };
 
   if (screen === "lobby") {
@@ -416,7 +429,30 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg, ${palette.night} 0%, #1a0d40 60%, ${palette.dusk} 100%)`, fontFamily: "'Segoe UI', sans-serif", color: "white", padding: "16px", display: "flex", flexDirection: "column", gap: 14, maxWidth: 740, margin: "0 auto" }}>
 
-      {helpOpen && (
+      {optionOpen && (
+        <div onClick={() => setOptionOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "linear-gradient(160deg, #1a0d40 0%, #0d0820 100%)", border: "1px solid rgba(255,215,0,0.3)", borderRadius: 18, width: "100%", maxWidth: 340, padding: "28px 24px", boxShadow: "0 24px 60px rgba(0,0,0,0.7)", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "white" }}>⚙️ オプション</h3>
+              <button onClick={() => setOptionOpen(false)} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "4px 10px", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "10px 14px" }}>
+              現在のプレイヤー：{(game?.players || []).join("、")}
+            </div>
+            <button onClick={resetGame} style={{ padding: "14px", borderRadius: 12, border: "none", background: "linear-gradient(90deg, #FFD700, #C4A24A)", color: "#0D0820", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+              🔄 再戦（同じメンバーで再スタート）
+            </button>
+            <button onClick={newGame} style={{ padding: "14px", borderRadius: 12, border: "1px solid rgba(255,107,53,0.5)", background: "rgba(255,107,53,0.15)", color: "#FF6B35", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+              🆕 新規ゲーム（メンバーをリセット）
+            </button>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textAlign: "center", lineHeight: 1.6 }}>
+              新規ゲームを開始すると現在のゲームデータは<br/>削除されます。
+            </div>
+          </div>
+        </div>
+      )}
+
+            {helpOpen && (
         <div onClick={() => setHelpOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "linear-gradient(160deg, #1a0d40 0%, #0d0820 100%)", border: "1px solid rgba(255,215,0,0.3)", borderRadius: 18, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", padding: "24px 22px", boxShadow: "0 24px 60px rgba(0,0,0,0.7)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
@@ -474,7 +510,7 @@ export default function App() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>👤 {myName || "観戦"}</span>
           <button onClick={() => setHelpOpen(true)} style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.75)", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>❓ Tips</button>
-          {game.phase === "finished" && <button onClick={resetGame} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,215,0,0.4)", background: "transparent", color: palette.gold, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>🔄 再戦</button>}
+          <button onClick={() => setOptionOpen(true)} style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.75)", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>⚙️ Option</button>
         </div>
       </div>
 
