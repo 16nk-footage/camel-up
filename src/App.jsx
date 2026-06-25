@@ -46,7 +46,7 @@ function initGame(players) {
     phase: "playing", turn: 0, players,
     coins: Object.fromEntries(players.map((p) => [p, STARTING_COINS])),
     positions, stacks,
-    legBets: {}, raceBets: { win: [], lose: [] },
+    legBets: {}, raceBets: { win: ["__init__"], lose: ["__init__"] },
     usedDice: [], crazyDiceUsed: false,
     log: ["🏁 レース開始！"], winner: null,
   };
@@ -558,8 +558,8 @@ export default function App() {
       {/* ベット一覧（全員） */}
       {(() => {
         const allLegBets = NORMAL_CAMELS.flatMap((camel) => (game.legBets[camel] || []).map((b, idx) => ({ ...b, camel, order: idx })));
-        const allWinBets = game.raceBets.win;
-        const allLoseBets = game.raceBets.lose;
+        const allWinBets = (game.raceBets?.win || []).filter(b => b !== "__init__");
+        const allLoseBets = (game.raceBets?.lose || []).filter(b => b !== "__init__");
         const hasAny = allLegBets.length > 0 || allWinBets.length > 0 || allLoseBets.length > 0;
         return (
           <div style={{ ...ss, border: "1px solid rgba(150,150,255,0.25)", background: "rgba(150,150,255,0.05)" }}>
