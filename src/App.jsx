@@ -132,7 +132,7 @@ function moveCamel(state, camel, steps, crazy) {
   ns.stacks[fromSq] = fromStack.slice(0, camelIdx);
   if (!ns.stacks[fromSq].length) delete ns.stacks[fromSq];
 
-  if (!crazy && toSq >= TRACK_LENGTH) {
+  if (!crazy && toSq >= TRACK_LENGTH - 1) {
     ns.winner = camel;
     ns.phase = "finished";
     ns.log.unshift(`🏆 ${CAMEL_JP[camel]}ラクダがゴール！`);
@@ -633,22 +633,44 @@ export default function App() {
                 </div>
               </div>
             )}
-            {allWinBets.length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏆 優勝ベット</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {allWinBets.map((b, i) => { const col = playerColorMap[b.player]||PLAYER_COLORS[0]; return (<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:col.bg,border:`1px solid ${col.border}`,borderRadius:8,padding:"5px 10px"}}><span style={{fontSize:17}}>{CAMEL_EMOJI[b.camel]}</span><span style={{fontSize:11,fontWeight:700,color:col.text}}>{b.player===myName?"★ ":""}{b.player}</span></div>); })}
-                </div>
-              </div>
-            )}
-            {allLoseBets.length > 0 && (
-              <div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏁 最下位ベット</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {allLoseBets.map((b, i) => { const col = playerColorMap[b.player]||PLAYER_COLORS[0]; return (<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:col.bg,border:`1px solid ${col.border}`,borderRadius:8,padding:"5px 10px"}}><span style={{fontSize:17}}>{CAMEL_EMOJI[b.camel]}</span><span style={{fontSize:11,fontWeight:700,color:col.text}}>{b.player===myName?"★ ":""}{b.player}</span></div>); })}
-                </div>
-              </div>
-            )}
+            {(() => {
+              const myWinBets = allWinBets.filter(b => b.player === myName);
+              const myLoseBets = allLoseBets.filter(b => b.player === myName);
+              const othersWinCount = allWinBets.filter(b => b.player !== myName).length;
+              const othersLoseCount = allLoseBets.filter(b => b.player !== myName).length;
+              return (
+                <>
+                  <div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏆 優勝ベット</div>
+                    {myWinBets.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                        {myWinBets.map((b, i) => { const col = playerColorMap[b.player]||PLAYER_COLORS[0]; return (<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:col.bg,border:`1px solid ${col.border}`,borderRadius:8,padding:"5px 10px"}}><span style={{fontSize:17}}>{CAMEL_EMOJI[b.camel]}</span><span style={{fontSize:11,fontWeight:700,color:col.text}}>★ {b.player}</span></div>); })}
+                      </div>
+                    )}
+                    {othersWinCount > 0 && (
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+                        他{othersWinCount}件のベットあり（非公開）
+                      </div>
+                    )}
+                    {allWinBets.length === 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>まだ誰もベットしていません</div>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 8 }}>🏁 最下位ベット</div>
+                    {myLoseBets.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                        {myLoseBets.map((b, i) => { const col = playerColorMap[b.player]||PLAYER_COLORS[0]; return (<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:col.bg,border:`1px solid ${col.border}`,borderRadius:8,padding:"5px 10px"}}><span style={{fontSize:17}}>{CAMEL_EMOJI[b.camel]}</span><span style={{fontSize:11,fontWeight:700,color:col.text}}>★ {b.player}</span></div>); })}
+                      </div>
+                    )}
+                    {othersLoseCount > 0 && (
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+                        他{othersLoseCount}件のベットあり（非公開）
+                      </div>
+                    )}
+                    {allLoseBets.length === 0 && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>まだ誰もベットしていません</div>}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
