@@ -290,6 +290,13 @@ export default function App() {
         setGame(g);
         gameRef.current = g;
         setScreen(s => s === "lobby" ? "game" : s);
+      } else {
+        // データがnull = 新規ゲーム開始 → 全員ロビーに戻す
+        setGame(null);
+        gameRef.current = null;
+        setMyName("");
+        setPlayerName("");
+        setScreen("lobby");
       }
     });
     return () => unsub();
